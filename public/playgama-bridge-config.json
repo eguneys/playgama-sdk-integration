@@ -1,0 +1,28 @@
+{
+  "$schema": "https://bridge.playgama.com/v1.27.0/schema.json",
+  "advertisement": {
+    "useBuiltInErrorPopup": true,
+    "interstitial": {
+      "preloadOnStart": true,
+      "placements": [{ "id": "test" }]
+    }
+  },
+  "leaderboards": [
+    {
+      "id": "test_leaderboard",
+      "isMain": true
+    }
+  ],
+  "sendAnalyticsEvents": true,
+  "showFullLoadingLogo": true,
+  "device": {
+    "supportedOrientations": [
+      "landscape"
+    ]
+  },
+  "platforms": {
+    "game_distribution": {
+      "gameId": "SuperDuperShapes"
+    }
+  }
+}
