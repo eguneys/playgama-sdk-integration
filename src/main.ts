@@ -4,9 +4,7 @@ import './style.css'
 
 import { _render, _update, _init, _set_ctx } from './game'
 
-async function app(el: HTMLElement) {
-
-  console.log(el)
+async function init_bridge() {
 
   await bridge_init()
 
@@ -21,10 +19,13 @@ async function app(el: HTMLElement) {
   set_is_paused_change_cb((yes) => {
 
   })
+}
 
-  let { batch } = Init_canvas(1920, 1080, el, _render)
+async function app(el: HTMLElement) {
 
-  _set_ctx(batch)
+  let { batch, canvas } = Init_canvas(1920, 1080, el, _render)
+
+  _set_ctx(batch, canvas)
   _init()
 
   Loop(_update, _render)
