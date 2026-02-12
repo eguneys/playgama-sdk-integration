@@ -3,6 +3,11 @@
  */
 export class Delay {
 
+    repeat() {
+        this.set_line(this._raw_line)
+    }
+
+    private _raw_line: string = ''
     private time = 0
     private next_pop = Infinity
     private line: string[] = []
@@ -16,8 +21,13 @@ export class Delay {
      * 
      * `.set_line('500')` will fire an `end` event after 500ms
      */
-    set_line(line: string) {
-        this.line = line.split(' ')
+    set_line(line: string | number) {
+        this._raw_line = line
+        if (typeof line === 'number') {
+            this.line = [`${line}`]
+        } else {
+            this.line = line.split(' ')
+        }
         this.next_pop = this.time
         return this
     }

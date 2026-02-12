@@ -9,6 +9,8 @@ export function distance(a: Vec2, b: Vec2) { return length(sub(a, b)); }
 export function distance2(a: Vec2, b: Vec2) { return len2(sub(a, b)); }
 export function normalize(a: Vec2) { const l = length(a); return { x: a.x / l, y: a.y / l };  }
 
+export function vec2_equals(a: Vec2, b: Vec2) { return a.x === b.x && a.y === b.y }
+
 /**
  * Normalize Vector but return zero Vector when length is zero
  */

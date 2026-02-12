@@ -8,93 +8,9 @@ export function _update(delta: number) {
     Vampire.vs.forEach(_ => _.update(delta))
     //sceneCamera.zoomAt(100, 100, 1 + Math.sin(t * 0.001) * 0.2)
 
-    grid_step_delay.update(delta)
+    Occupancy.update(delta)
 
-
-    if (grid_step_delay.action === 'end') {
-        grid_step_delay.set_line('2000')
-        grid.step()
-    }
-}
-export function _render_old() {
-
-    let x = 100 + Math.sin(t * 0.003) * 80
-    let lt = t * 0.0008
-
-    pipeline.lights.push({
-        atlasIndex: -1,
-        position: {
-            x: 0,
-            y: 0
-        },
-        radius: 100,
-        color: {
-            r: 1.0,
-            g: 0.0,
-            b: 1.0
-        },
-        time: lt
-    })
-
-
-    pipeline.lights.push({
-        atlasIndex: -1,
-        position: {
-            x: 100,
-            y: 100
-        },
-        radius: 100,
-        color: {
-            r: 1.0,
-            g: 0.0,
-            b: 1.0
-        },
-        time: lt
-    })
-
-
-
-    pipeline.occluders.push({
-        a: vec2(0, 0), b: vec2(200, 0)
-    })
-    pipeline.occluders.push({
-        a: vec2(50, 100), b: vec2(50, 200)
-    })
-
-
-
-    for (let i = 0; i < 8; i++) {
-
-        pipeline.lights.push({
-            atlasIndex: -1,
-            position: {
-                x,
-                y: 100
-            },
-            radius: 80,
-            color: {
-                r: 1.0,
-                g: 1.0,
-                b: 1.0
-            },
-            time: lt
-        })
-    }
-
-    queue.submit({
-        type: 'sprite',
-        pass: 'world',
-        sprite: bgSprite,
-        x: 200,
-        y: 200,
-        rotation: 0,
-        layer: 0,
-        depth: 0,
-    })
- 
-
-    pipeline.render()
-
+    cursor.position = vec2(drag.is_hovering[0], drag.is_hovering[1])
 }
 
 enum TerrainType {
@@ -110,39 +26,120 @@ enum OccupancyState {
     MovingIn,
     MovingOut,
     Spawn,
-    SpawnCool
 }
 
 class Occupancy {
+
+    static spawn_delay: Delay = new Delay().set_line('1000')
 
     static add_occ: Occupancy[] = []
     static remove_occ: Occupancy[] = []
     static os_by_state: Map<OccupancyState, Occupancy[]> = new Map()
 
-    static spawn = (coord: TileCord) => {
+    static get size() {
+        return [...this.os_by_state.values()].reduce((a, b) => a + b.length, 0)
+    }
+
+    static spawn_if_empty = (coord: TileCord) => {
+
+        let exists = Occupancy.os_by_state.get(OccupancyState.OnTile)?.find(_ => vec2_equals(_.coord, vec2(0, 0)))
+        if (exists) {
+            return
+        }
+
+        exists = Occupancy.os_by_state.get(OccupancyState.Spawn)?.find(_ => vec2_equals(_.coord, vec2(0, 0)))
+        if (exists) {
+            return
+        }
+        exists = Occupancy.os_by_state.get(OccupancyState.MovingOut)?.find(_ => vec2_equals(_.coord, vec2(0, 0)))
+        if (exists) {
+            return
+        }
+
+
+
+
         Occupancy.add_occ.push(new Occupancy(
             Vampire.push(coord), 
             OccupancyState.Spawn, 
-            coord))
+            coord, 
+            0))
     }
 
-    static move = (occ: Occupancy, to_tile: TileCord) => {
+    static move_if_empty = (occ: Occupancy, to_tile: TileCord) => {
+
+        let exists = Occupancy.os_by_state.get(OccupancyState.OnTile)?.find(_ => vec2_equals(_.coord, to_tile))
+        if (exists) {
+            return
+        }
+        exists = Occupancy.os_by_state.get(OccupancyState.MovingIn)?.find(_ => vec2_equals(_.coord, to_tile))
+        if (exists) {
+            return
+        }
+        exists = Occupancy.os_by_state.get(OccupancyState.Spawn)?.find(_ => vec2_equals(_.coord, to_tile))
+        if (exists) {
+            return
+        }
+
+
+
+
         occ.vampire.move_to(to_tile)
         Occupancy.remove_occ.push(occ)
         Occupancy.add_occ.push(new Occupancy(
             occ.vampire,
             OccupancyState.MovingIn,
             to_tile,
+            occ.spiral_i
         ))
         Occupancy.add_occ.push(new Occupancy(
             occ.vampire,
             OccupancyState.MovingOut,
             occ.coord,
+            occ.spiral_i
+        ))
+    }
+
+    static remove = (occ: Occupancy) => {
+        Occupancy.remove_occ.push(occ)
+    }
+
+    static move_in = (occ: Occupancy) => {
+        Occupancy.remove(occ)
+        Occupancy.add_occ.push(new Occupancy(
+            occ.vampire,
+            OccupancyState.OnTile,
+            occ.coord,
+            occ.spiral_i
         ))
     }
 
     static update = (delta: number) => {
+
+
+        if (Occupancy.size < 90) {
+            Occupancy.spawn_if_empty(vec2(0, 0))
+        }
+
+        this.remove_occ.forEach(_ => {
+            let list = this.os_by_state.get(_.state)!
+            this.os_by_state.set(_.state, list.filter(i => i !== _))
+        })
+
+        this.add_occ.forEach(_ => {
+            let list = this.os_by_state.get(_.state) ?? []
+            list.push(_)
+            this.os_by_state.set(_.state, list)
+        })
+
+
+        this.add_occ = []
+        this.remove_occ = []
+
         this.os_by_state.forEach(_ => _.map(_ => _.update(delta)))
+
+        this.spawn_delay.update(delta)
+
     }
 
     time: number
@@ -151,6 +148,7 @@ class Occupancy {
         public vampire: Vampire,
         public state: OccupancyState,
         public coord: TileCord,
+        public spiral_i: number
     ) {
         this.time = 0
     }
@@ -161,29 +159,71 @@ class Occupancy {
 
         switch (this.state) {
             case OccupancyState.Spawn: {
-                this.move()
+                this.move_if_empty()
+            } break
+            case OccupancyState.OnTile: {
+                this.move_if_empty()
+            } break
+            case OccupancyState.MovingOut: {
+                if (this.vampire.to_tile === undefined) {
+                    Occupancy.remove(this)
+                }
+            } break
+            case OccupancyState.MovingIn: {
+                if (this.vampire.to_tile === undefined) {
+                    Occupancy.move_in(this)
+                }
             }
         }
     }
 
 
 
-    private move() {
+    private move_if_empty() {
         let occ = this
         let on_tile = occ.vampire.on_tile
         let to_tile = add(on_tile, vec2(1, 0))
-        if (on_tile.x === Grid.width - 1) {
+        let spiral_i = occ.spiral_i
+
+        if (on_tile.x === Grid.width - spiral_i) {
+            // Right edge - go DOWN
             to_tile = vec2(on_tile.x, on_tile.y + 1)
 
-            if (on_tile.y === Grid.height - 1) {
+            if (on_tile.y === Grid.height - spiral_i) {
+                // Hit bottom-right corner - go LEFT instead
                 to_tile = vec2(on_tile.x - 1, on_tile.y)
             }
+        } else if (on_tile.y === Grid.height - spiral_i) {
+            // Bottom edge - go LEFT
+            to_tile = vec2(on_tile.x - 1, on_tile.y)
+
+            if (on_tile.x - spiral_i < 1) {
+                // Hit bottom-left corner - go UP instead
+                to_tile = vec2(on_tile.x, on_tile.y - 1)
+            }
+        } else if (on_tile.x - spiral_i < 1) {
+            // Left edge - go UP
+            to_tile = vec2(on_tile.x, on_tile.y - 1)
+
+            // You're missing the top-left corner case here
+            if (on_tile.y - spiral_i < 1) {
+                // Hit top-left corner - go RIGHT instead
+                to_tile = vec2(on_tile.x + 1, on_tile.y)
+
+            }
+        } else if (on_tile.y - spiral_i < 1) {
+            // Top edge - go RIGHT
+            to_tile = vec2(on_tile.x + 1, on_tile.y)
+
         }
 
-        Occupancy.move(occ, to_tile)
+        if (to_tile.x === spiral_i && to_tile.y === (spiral_i + 1)) {
+            occ.spiral_i += 1
+        }
+        console.log(to_tile.x, spiral_i)
+
+        Occupancy.move_if_empty(occ, to_tile)
     }
-
-
 
 }
 
@@ -192,8 +232,8 @@ const empty_tile = () => ({ terrain: TerrainType.Empty })
 class Grid {
 
     static tileSize = 24
-    static width = 8
-    static height = 8
+    static width = 9
+    static height = 7
 
     tiles: Tile[][]
 
@@ -206,77 +246,8 @@ class Grid {
                 this.tiles[i][j] = empty_tile()
             }
         }
-
-        this.step()
-
     }
 
-
-    step() {
-
-        let remove_occ = []
-        let add_occ = []
-
-        for (let occ of this.occupancy) {
-
-            if (occ.state === OccupancyState.OnTile) {
-                this.move_vampire(occ, add_occ, remove_occ)
-
-            }
-
-            if (occ.state === OccupancyState.MovingOut) {
-
-                if (occ.vampire.to_tile === undefined) {
-                    remove_occ.push(occ)
-                }
-            }
-
-            if (occ.state === OccupancyState.MovingIn) {
-                remove_occ.push(occ)
-                add_occ.push({
-                    state: OccupancyState.OnTile,
-                    vampire: occ.vampire,
-                    coord: occ.coord
-                })
-            }
-
-            if (occ.state === OccupancyState.Spawn) {
-                this.move_vampire(occ, add_occ, remove_occ)
-            }
-
-            if (occ.state === OccupancyState.SpawnCool) {
-                this.spawn_vampire(vec2(0, 0), add_occ)
-                remove_occ.push(occ)
-            }
-        }
-
-        this.occupancy = this.occupancy.filter(_ => remove_occ.indexOf(_) === -1)
-
-        if (this.occupancy.length === 0) {
-            this.spawn_vampire(vec2(0, 0), add_occ)
-        }
-
-        this.occupancy.push(...add_occ)
-
-    }
-
-    private spawn_vampire(on_tile: TileCord, add_occ: Occupancy[]) {
-
-        let vampire = Vampire.push(on_tile)
-
-        add_occ.push({
-            vampire,
-            state: OccupancyState.Spawn,
-            coord: on_tile
-        })
-
-
-        add_occ.push({
-            vampire,
-            state: OccupancyState.SpawnCool,
-            coord: on_tile
-        })
-    }
 }
 
 type TileCord = Vec2
@@ -314,7 +285,7 @@ class Vampire {
         this.spring_position_y = new AnimChannel(position.y)
         this.to_delay = new Delay()
         this.a = new AnimChannel(0)
-        this.a.springTo(100)
+        this.a.springTo(60)
         this.a_delay = new Delay().set_line('300')
     }
 
@@ -323,7 +294,7 @@ class Vampire {
         let to_position = tile_to_pos(to_tile)
         this.spring_position_x.springTo(to_position.x)
         this.spring_position_y.springTo(to_position.y)
-        this.to_delay.set_line('100')
+        this.to_delay.set_line('500')
     }
 
     update(delta: number) {
@@ -335,7 +306,7 @@ class Vampire {
         }
 
         if (this.a_delay.action === 'end') {
-            this.a.springTo(80)
+            this.a.springTo(50)
         }
 
         this.to_delay.update(delta)
@@ -355,6 +326,7 @@ class Vampire {
             sprite: vSprite,
             x,
             y,
+            scale: 0.5,
             layer: 0,
             depth: 0
         })
@@ -377,18 +349,29 @@ export function _render() {
     }
 
 
+    pipeline.lights.push({
+        atlasIndex: 0,
+        position: cursor.position,
+        radius: 40,
+        color: vibrant.red,
+        time: t * 0.02
+    })
+
+
     queue.submit({
         type: 'sprite',
         pass: 'world',
         sprite: bgSprite,
         x: 0,
         y: 0,
+        scale: 8,
         layer: 0,
         depth: 0
     })
 
 
     Vampire.vs.forEach(_ => _.render())
+
 
 
     pipeline.render()
@@ -400,11 +383,14 @@ export function _render() {
 import bg_test from '../design/bg_test.png'
 import test_pgn from '../design/test2.png'
 import type { Camera2D } from '../twisterjs/webgl/camera2d'
-import { add, AnimChannel, BloomPass, colors, Delay, FullscreenQuadRenderer, load_image, mulScalar, vec2, type RenderQueue, type Vec2} from '../twisterjs'
+import { add, AnimChannel, BloomPass, colors, Delay, DragHandler, FullscreenQuadRenderer, load_image, mulScalar, vec2, vec2_equals, vibrant, type RenderQueue, type Vec2} from '../twisterjs'
 import { RenderPipeline } from './pipeline'
 
-export async function _set_ctx(q: RenderQueue, _canvas: HTMLCanvasElement) {
+let drag: DragHandler
+export async function _set_ctx(q: RenderQueue, canvas: HTMLCanvasElement) {
     queue = q
+
+    drag = DragHandler(320, 180, canvas)
 
     let bg_image = await load_image(bg_test)
 
@@ -478,16 +464,20 @@ let bgSprite: Sprite
 
 let pipeline: RenderPipeline
 
-let grid: Grid
 let t: number
 
-let grid_step_delay: Delay
+type Cursor = {
+    position: Vec2
+}
+let cursor: Cursor
+
 export function _init() {
     sceneCamera.setOrthographic(0, 320, 180, 0)
 
     t = 0 
 
-    grid = new Grid()
-    grid_step_delay = new Delay().set_line('200')
+    cursor = {
+        position: vec2(drag.is_hovering[0], drag.is_hovering[1])
+    }
 }
 
