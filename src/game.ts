@@ -10,7 +10,7 @@ export function _update(delta: number) {
 
     Occupancy.update(delta)
 
-    cursor.position = vec2(drag.is_hovering[0], drag.is_hovering[1])
+    Cursor.instance.update(delta)
 }
 
 enum TerrainType {
@@ -220,7 +220,6 @@ class Occupancy {
         if (to_tile.x === spiral_i && to_tile.y === (spiral_i + 1)) {
             occ.spiral_i += 1
         }
-        console.log(to_tile.x, spiral_i)
 
         Occupancy.move_if_empty(occ, to_tile)
     }
@@ -231,9 +230,10 @@ const empty_tile = () => ({ terrain: TerrainType.Empty })
 
 class Grid {
 
-    static tileSize = 24
-    static width = 9
-    static height = 7
+    static tileSize = 16 
+    static width = 16
+    static height = 9
+    static Speed = 1
 
     tiles: Tile[][]
 
@@ -252,7 +252,7 @@ class Grid {
 
 type TileCord = Vec2
 
-const tile_to_pos = (cord: TileCord) => add(mulScalar(cord, Grid.tileSize), vec2(10, 10))
+const tile_to_pos = (cord: TileCord) => add(mulScalar(cord, Grid.tileSize), vec2(9, 16))
 
 class Vampire {
     static vs: Vampire[] = []
@@ -306,7 +306,7 @@ class Vampire {
         }
 
         if (this.a_delay.action === 'end') {
-            this.a.springTo(50)
+            this.a.springTo(40)
         }
 
         this.to_delay.update(delta)
@@ -326,7 +326,6 @@ class Vampire {
             sprite: vSprite,
             x,
             y,
-            scale: 0.5,
             layer: 0,
             depth: 0
         })
@@ -335,7 +334,7 @@ class Vampire {
             atlasIndex: 0,
             position: this.position,
             radius: this.a.value,
-            color: colors.blue,
+            color: colors.darkblue,
             time: this.time * 0.0001
         })
     }
@@ -347,15 +346,6 @@ export function _render() {
     if (t === undefined) {
         return
     }
-
-
-    pipeline.lights.push({
-        atlasIndex: 0,
-        position: cursor.position,
-        radius: 40,
-        color: vibrant.red,
-        time: t * 0.02
-    })
 
 
     queue.submit({
@@ -372,8 +362,7 @@ export function _render() {
 
     Vampire.vs.forEach(_ => _.render())
 
-
-
+    Cursor.instance.render()
     pipeline.render()
 }
 
@@ -430,11 +419,13 @@ export async function _set_ctx(q: RenderQueue, canvas: HTMLCanvasElement) {
         frames: {
             //...frames('player_idle', { x: 0, y: 0, w: 32, h: 32 }, 4),
             //...frames('test_idle', { x: 0, y: 100, w: 100, h: 100 }, 1),
-            'player_idle': { frame: { x: 0, y: 0, w: 32, h: 32 }}
+            'player_idle': { frame: { x: 24, y: 0, w: 8, h: 8 }},
+            'cursor': { frame: { x: 0, y: 16, w: 16, h: 16 }}
         }
     }, { pixelArt: true })
 
     vSprite = new Sprite(atlas, 'player_idle')
+    cursor_Sprite = new Sprite(atlas, 'cursor')
 
     bgSprite = new Sprite(bg_atlas, 'bg1')
 
@@ -451,6 +442,7 @@ export async function _set_ctx(q: RenderQueue, canvas: HTMLCanvasElement) {
     sceneCamera = pipeline.scenePass.camera
 }
 
+let cursor_Sprite: Sprite
 let vSprite: Sprite
 
 let queue: RenderQueue
@@ -466,18 +458,88 @@ let pipeline: RenderPipeline
 
 let t: number
 
-type Cursor = {
+class Cursor {
+
+    static instance = new Cursor()
+
     position: Vec2
+    position_d0: [AnimChannel, AnimChannel]
+    position_d1: [AnimChannel, AnimChannel]
+    lag: Delay
+
+    private constructor() {
+        this.position = vec2(0, 0)
+        this.position_d0 = [new AnimChannel(), new AnimChannel()]
+        this.position_d1 = [new AnimChannel(), new AnimChannel()]
+
+        this.lag = new Delay().set_line(200)
+    }
+
+    update(delta: number) {
+        this.position = vec2(drag.is_hovering[0], drag.is_hovering[1])
+
+        this.lag.update(delta)
+
+        if (this.lag.action === 'end') {
+            this.position_d1[0].springTo(this.position_d0[0].value)
+            this.position_d1[1].springTo(this.position_d0[1].value)
+
+            this.position_d0[0].springTo(this.position.x)
+            this.position_d0[1].springTo(this.position.y)
+
+            this.lag.set_line(10 + Math.random() * 60)
+        }
+
+        this.position_d0[0].update(delta / 1000)
+        this.position_d0[1].update(delta / 1000)
+        this.position_d1[0].update(delta / 1000)
+        this.position_d1[1].update(delta / 1000)
+    }
+
+    render() {
+        pipeline.lights.push({
+            atlasIndex: 0,
+            position: this.position,
+            radius: 30,
+            color: vibrant.red,
+            time: t * 0.02
+        })
+
+        pipeline.lights.push({
+            atlasIndex: 0,
+            position: vec2(this.position_d0[0].value, this.position_d0[1].value),
+            radius: 30,
+            color: colors.darkblue,
+            time: t * 0.02
+        })
+
+        pipeline.lights.push({
+            atlasIndex: 0,
+            position: vec2(this.position_d1[0].value, this.position_d1[1].value),
+            radius: 20,
+            color: colors.darkred,
+            time: t * 0.02
+        })
+
+        queue.submit({
+            type: 'sprite',
+            pass: 'world',
+            sprite: cursor_Sprite,
+            x: this.position.x,
+            y: this.position.y,
+            layer: 0,
+            depth: 0
+        })
+
+
+    }
 }
-let cursor: Cursor
+
+
 
 export function _init() {
     sceneCamera.setOrthographic(0, 320, 180, 0)
 
     t = 0 
-
-    cursor = {
-        position: vec2(drag.is_hovering[0], drag.is_hovering[1])
-    }
 }
 

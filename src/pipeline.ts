@@ -101,14 +101,15 @@ export class RenderPipeline {
         // -------------------------
         this.multiplyPass.execute();
 
+        let nextTexture = this.litSceneTarget.texture
         // -------------------------
         // 5️⃣ Optional Bloom
         // -------------------------
         if (this.bloomPass) {
-            this.bloomPass.execute(this.litSceneTarget.texture);
+            nextTexture = this.bloomPass.execute(this.litSceneTarget.texture);
         }
 
-        this.compositePass.execute(this.litSceneTarget.texture, this.litWallTarget.texture, this.compositedTarget)
+        this.compositePass.execute(nextTexture, this.litWallTarget.texture, this.compositedTarget)
 
         // -------------------------
         // 6️⃣ Final To Screen
