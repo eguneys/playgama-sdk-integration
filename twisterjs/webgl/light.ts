@@ -8,6 +8,7 @@ export interface Light {
     position: { x: number; y: number };
     radius: number;
     color: { r: number; g: number; b: number };
+    time: number
 }
 
 export interface OccluderEdge {
@@ -254,6 +255,8 @@ export class LightRenderer {
     private program: WebGLProgram
     private uColor: WebGLUniformLocation
     private uRadius: WebGLUniformLocation
+    private uTime: WebGLUniformLocation
+
 
     private vao: WebGLVertexArrayObject;
     private vbo: WebGLBuffer;
@@ -264,6 +267,7 @@ export class LightRenderer {
 
         this.uColor = gl.getUniformLocation(this.program, 'uColor')!
         this.uRadius = gl.getUniformLocation(this.program, 'uRadius')!
+        this.uTime = gl.getUniformLocation(this.program, 'uTime')!
 
 
 
@@ -311,6 +315,7 @@ export class LightRenderer {
         );
 
         gl.uniform1f(this.uRadius, light.radius / tileSize);
+        gl.uniform1f(this.uTime, light.time);
 
         this.drawFullscreenQuad();
     }

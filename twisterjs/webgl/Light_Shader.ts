@@ -32,12 +32,16 @@ precision highp float;
 in vec2 vUV;
 uniform vec3 uColor;
 uniform float uRadius;
+uniform float uTime;
 
 out vec4 fragColor;
 
 void main() {
     float dist = length(vUV - vec2(0.5));
     float intensity = 1.0 - smoothstep(0.0, uRadius, dist);
+
+
+    intensity *= 0.9 + 0.1 * sin(uTime * 10.0);
 
     float levels = 4.0;
 
@@ -53,7 +57,14 @@ precision highp float;
 out vec4 fragColor;
 
 void main() {
-    fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+
+    vec3 shadow = vec3(0.05, 0.08, 0.12);
+    shadow = vec3(0.005, 0.008, 0.01);
+    //shadow = vec3(0.0);
+    fragColor = vec4(shadow, 1.0);
+
+
+
 }
 
 `
@@ -92,7 +103,14 @@ in vec2 vUV;
 out vec4 fragColor;
 
 void main() {
+
+
+
+
     fragColor = texture(uAtlas, vUV);
+
+
+
 }
 
 `

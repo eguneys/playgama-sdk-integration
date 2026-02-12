@@ -105,5 +105,15 @@ export const Multiply_VS = `#version 300 es
             vec4 sceneColor = texture(uScene, vUV);
             vec4 lightColor = texture(uLight, vUV);
 
+            float ambient = 0.1;
+
             fragColor = sceneColor * lightColor;
+            vec4 lit = mix(sceneColor * ambient, sceneColor, lightColor);
+
+            float l = dot(lightColor, vec4(0.833));
+            vec3 desat = mix(sceneColor.rgb, vec3(l), 0.3);
+
+            fragColor *= vec4(desat, 0.8);
+            //fragColor = sceneColor * ambient + lightColor * ambient;
+            //fragColor = lit;
         }`

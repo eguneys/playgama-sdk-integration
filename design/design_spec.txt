@@ -1,0 +1,69 @@
+You don’t control the vampires directly.
+You drag ancient runes across the floor to influence their behavior.
+
+Think: cellular automata meets Sokoban-lite.
+They are unreliable assistants.
+
+Clicks and drags runes
+
+Runes snap to grid
+
+Runes alter nearby tile behavior
+rewiring the dungeon
+
+
+blood rune
+vampires are attracted to it
+
+binding rune
+freezes vampire in place if stepped on
+
+shadow gate
+teleports vampire to another gate
+
+sanctified seal
+repels vampires
+
+ritual circle goal
+must charge by having specific configuration
+
+guide 3 vampires into ritual
+prevent wrong vampire from charging wrong circle
+use binding rune to stall one
+teleport routing
+rune budget 
+
+each rune drains blood energy
+so you cannot spam drag constantly
+
+
+tile grid
+list of agents
+rune modifier lookup
+behavior rules
+
+### moood
+
+silent chamber
+subtle ambient wind
+occasional vampire squaek
+low heartbeat when ritual is near completion
+
+minor harmonic scale
+slow 3-note ostinato
+subtle noise channel for atmosphere
+
+## variant
+
+vampires always move toward nearest blood rune
+if tied, choose clockwise preference
+
+
+
+like rule systems
+like engine-driven derivations
+like small deep abstractions
+prefer minimal visual burden
+
+A visible rule engine disguised as a ritual chamber
+
