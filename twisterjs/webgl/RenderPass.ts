@@ -61,12 +61,12 @@ export class RenderQueue {
 
 
 
-export interface RenderTarget {
+export interface IRenderTarget {
     bind(): void;
 }
 
 
-export class FramebufferTarget implements RenderTarget {
+export class RenderTarget implements IRenderTarget {
 
     readonly framebuffer: WebGLFramebuffer;
     readonly texture: WebGLTexture;
@@ -141,7 +141,7 @@ export class FramebufferTarget implements RenderTarget {
     }
 }
 
-export class ScreenTarget implements RenderTarget {
+export class ScreenTarget implements IRenderTarget {
 
     constructor(private gl: WebGL2RenderingContext, private width: number, private height: number) {}
 
@@ -155,14 +155,14 @@ export class ScenePass {
 
     readonly name: string;
     readonly camera: Camera2D;
-    readonly target: RenderTarget;
+    readonly target: IRenderTarget;
 
     private renderers: IRenderer<any>[] = [];
 
     constructor(
         name: string,
         camera: Camera2D,
-        target: RenderTarget,
+        target: IRenderTarget,
     ) {
         this.name = name;
         this.camera = camera;
@@ -176,6 +176,7 @@ export class ScenePass {
     execute(gl: WebGL2RenderingContext, commands: RenderCommand[]) {
 
         this.target.bind();
+        gl.clearColor(0, 0, 0, 0.0)
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         this.camera.update();
@@ -216,6 +217,7 @@ export interface IRenderer<T extends RenderCommand> {
 
 
 import * as FSs from './FullScreen_Shaders'
+import { createShader } from "./light";
 
 export class FullscreenQuadRenderer {
 
@@ -464,11 +466,11 @@ export class PostProcessStage {
     }
 }
 
-export class CopyPass implements PostProcessPass {
+export class FinalPass implements PostProcessPass {
 
     constructor(
         private gl: WebGL2RenderingContext,
-        private quad: FullscreenQuadRenderer
+        private quad: FullscreenQuadRenderer = new FullscreenQuadRenderer(gl)
     ) {}
 
     execute(inputTexture: WebGLTexture) {
@@ -484,9 +486,9 @@ export class CopyPass implements PostProcessPass {
 
 export class BloomPass implements PostProcessPass {
 
-    private brightTarget: FramebufferTarget;
-    private ping: FramebufferTarget;
-    private pong: FramebufferTarget;
+    private brightTarget: RenderTarget;
+    private ping: RenderTarget;
+    private pong: RenderTarget;
 
     constructor(
         gl: WebGL2RenderingContext,
@@ -495,14 +497,14 @@ export class BloomPass implements PostProcessPass {
         height: number
     ) {
 
-        this.brightTarget = new FramebufferTarget(gl, width, height);
-        this.ping = new FramebufferTarget(gl, width, height);
-        this.pong = new FramebufferTarget(gl, width, height);
+        this.brightTarget = new RenderTarget(gl, width, height);
+        this.ping = new RenderTarget(gl, width, height);
+        this.pong = new RenderTarget(gl, width, height);
     }
 
     public u_threshold = 0.64
     public u_intensity = 1.1
-    public blur_iterations = 6
+    public blur_iterations = 2
 
     execute(sceneTexture: WebGLTexture) {
 
@@ -540,4 +542,161 @@ export class BloomPass implements PostProcessPass {
         this.quad.renderComposite(sceneTexture, inputTex, u_intensity)
         return this.ping.texture
     }
+}
+
+
+export class MultiplyPass {
+
+    private program: WebGLProgram;
+    private vao!: WebGLVertexArrayObject;
+    private vbo!: WebGLBuffer;
+
+    private uScene!: WebGLUniformLocation;
+    private uLight!: WebGLUniformLocation;
+
+    constructor(
+        private gl: WebGL2RenderingContext,
+        private sceneTexture: WebGLTexture,
+        private lightTexture: WebGLTexture,
+        private output: RenderTarget
+    ) {
+        this.program = createShader(gl, FSs.Multiply_VS, FSs.Multiply_FS);
+        this.setupFullscreenQuad();
+        this.cacheUniforms();
+    }
+
+    execute(
+    ) {
+
+        const gl = this.gl;
+
+        // Bind output framebuffer
+        this.output.bind();
+
+        gl.disable(gl.BLEND);
+        gl.disable(gl.DEPTH_TEST);
+
+        gl.useProgram(this.program);
+
+        // Bind scene texture (unit 0)
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.sceneTexture);
+        gl.uniform1i(this.uScene, 0);
+
+        // Bind light texture (unit 1)
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, this.lightTexture);
+        gl.uniform1i(this.uLight, 1);
+
+        gl.bindVertexArray(this.vao);
+        gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+        gl.bindVertexArray(null);
+    }
+
+    // -------------------------
+    // Fullscreen Quad Setup
+    // -------------------------
+
+    private setupFullscreenQuad() {
+
+        const gl = this.gl;
+
+        const vertices = new Float32Array([
+            -1, -1,
+             1, -1,
+             1,  1,
+            -1,  1
+        ]);
+
+        this.vao = gl.createVertexArray()!;
+        gl.bindVertexArray(this.vao);
+
+        this.vbo = gl.createBuffer()!;
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+        gl.bindVertexArray(null);
+    }
+
+    private cacheUniforms() {
+        const gl = this.gl;
+        this.uScene = gl.getUniformLocation(this.program, "uScene")!;
+        this.uLight = gl.getUniformLocation(this.program, "uLight")!;
+    }
+
+}
+
+import { Composite_VS, Composite_FS } from './Composite_Shader'
+
+export class CompositePass {
+
+    private program: WebGLProgram;
+    private vao!: WebGLVertexArrayObject;
+    private vbo!: WebGLBuffer;
+
+    private uBackground!: WebGLUniformLocation;
+    private uForeground!: WebGLUniformLocation;
+
+    constructor(
+        private gl: WebGL2RenderingContext,
+    ) {
+
+        this.program = createShader(gl, Composite_VS, Composite_FS);
+
+        this.uBackground = gl.getUniformLocation(this.program, "uBackground")!;
+        this.uForeground = gl.getUniformLocation(this.program, "uForeground")!;
+
+        this.setupFullscreenQuad();
+    }
+
+    execute(bgTex: WebGLTexture, fgTex: WebGLTexture, output: RenderTarget) {
+
+        const gl = this.gl;
+
+        output.bind();
+
+        gl.disable(gl.BLEND);
+        gl.useProgram(this.program);
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, bgTex);
+        gl.uniform1i(this.uBackground, 0);
+
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, fgTex);
+        gl.uniform1i(this.uForeground, 1);
+
+        gl.bindVertexArray(this.vao);
+        gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+        gl.bindVertexArray(null);
+    }
+
+    private setupFullscreenQuad() {
+
+        const gl = this.gl;
+
+        const vertices = new Float32Array([
+            -1, -1,
+             1, -1,
+             1,  1,
+            -1,  1
+        ]);
+
+        this.vao = gl.createVertexArray()!;
+        gl.bindVertexArray(this.vao);
+
+        this.vbo = gl.createBuffer()!;
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+        gl.bindVertexArray(null);
+    }
+
+
 }

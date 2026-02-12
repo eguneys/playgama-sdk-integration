@@ -1,8 +1,7 @@
-import { BloomPass, CopyPass, FramebufferTarget, FullscreenQuadRenderer, PostProcessStage, type RenderQueue, ScenePass, load_image } from '../twisterjs'
 import { Sprite } from '../twisterjs/webgl/Sprite'
 import { TextureAtlas } from '../twisterjs/webgl/TextureAtlas'
-import { SpriteRenderer } from '../twisterjs/webgl/SpriteRenderer'
 import { Animator, Animation } from '../twisterjs/webgl/animation'
+import { SpriteRenderer } from '../twisterjs/webgl/SpriteRenderer'
 
 export function _update(delta: number) {
     t += delta
@@ -10,7 +9,7 @@ export function _update(delta: number) {
     animator.update(delta)
     testAnimator.update(delta)
 
-    worldPass.camera.zoomAt(100, 100, 1 + Math.sin(t * 0.001) * 0.2)
+    sceneCamera.zoomAt(100, 100, 1 + Math.sin(t * 0.001) * 0.2)
 
 }
 
@@ -18,6 +17,63 @@ export function _render() {
 
     if (animator === undefined) {
         return
+    }
+
+    let x = 100 + Math.sin(t * 0.003) * 80
+
+    pipeline.lights.push({
+        atlasIndex: -1,
+        position: {
+            x: 0,
+            y: 0
+        },
+        radius: 100,
+        color: {
+            r: 1.0,
+            g: 0.0,
+            b: 1.0
+        }
+    })
+    pipeline.lights.push({
+        atlasIndex: -1,
+        position: {
+            x: 100,
+            y: 100
+        },
+        radius: 100,
+        color: {
+            r: 1.0,
+            g: 0.0,
+            b: 1.0
+        }
+    })
+
+
+
+    pipeline.occluders.push({
+        a: vec2(0, 0), b: vec2(200, 0)
+    })
+    pipeline.occluders.push({
+        a: vec2(50, 100), b: vec2(50, 200)
+    })
+
+
+
+    for (let i = 0; i < 8; i++) {
+
+        pipeline.lights.push({
+            atlasIndex: -1,
+            position: {
+                x,
+                y: 100
+            },
+            radius: 80,
+            color: {
+                r: 1.0,
+                g: 1.0,
+                b: 1.0
+            }
+        })
     }
 
     queue.submit({
@@ -33,16 +89,31 @@ export function _render() {
  
     let sprite = animator.getCurrentSprite()
 
+
+
     queue.submit({
         type: 'sprite',
-        pass: 'world',
-        sprite,
-        x: 100 + Math.sin(t * 0.003) * 80,
+        pass: 'walls',
+        sprite: sprite,
+        x: 50,
         y: 100,
         rotation: 0,
         layer: 0,
         depth: 0,
     })
+
+
+    queue.submit({
+        type: 'sprite',
+        pass: 'world',
+        sprite,
+        x,
+        y: 100,
+        rotation: 0,
+        layer: 0,
+        depth: 0,
+    })
+
 
     sprite = testAnimator.getCurrentSprite()
 
@@ -60,13 +131,16 @@ export function _render() {
 
 
 
-    queue.flush()
-    stage.execute(worldTarget.texture)
+    pipeline.render()
+
 }
 
 
 import bg_test from '../design/bg_test.png'
 import test_pgn from '../design/test2.png'
+import type { Camera2D } from '../twisterjs/webgl/camera2d'
+import { BloomPass, FullscreenQuadRenderer, load_image, vec2, type RenderQueue } from '../twisterjs'
+import { RenderPipeline } from './pipeline'
 
 export async function _set_ctx(q: RenderQueue, _canvas: HTMLCanvasElement) {
     queue = q
@@ -115,23 +189,22 @@ export async function _set_ctx(q: RenderQueue, _canvas: HTMLCanvasElement) {
 
     bgSprite = new Sprite(bg_atlas, 'bg1')
 
-    worldTarget = new FramebufferTarget(q.gl, 320, 180)
-    worldPass = queue.addPass('world', { target: worldTarget })
-    worldPass.addRenderer(new SpriteRenderer(q.gl, bg_atlas))
-    worldPass.addRenderer(new SpriteRenderer(q.gl, atlas))
+    pipeline = new RenderPipeline(queue, 320, 180)
 
-    stage = new PostProcessStage([
-        new BloomPass(q.gl, new FullscreenQuadRenderer(q.gl), 320, 180),
-        new CopyPass(q.gl, new FullscreenQuadRenderer(q.gl))
-    ])
+    pipeline.scenePass.addRenderer(new SpriteRenderer(q.gl, bg_atlas))
+    pipeline.scenePass.addRenderer(new SpriteRenderer(q.gl, atlas))
 
+    pipeline.wallsPass.addRenderer(new SpriteRenderer(q.gl, bg_atlas))
+    pipeline.wallsPass.addRenderer(new SpriteRenderer(q.gl, atlas))
+
+    pipeline.bloomPass = new BloomPass(queue.gl, new FullscreenQuadRenderer(queue.gl), 320, 180)
+
+    sceneCamera = pipeline.scenePass.camera
 }
 
 let queue: RenderQueue
-let stage: PostProcessStage
 
-let worldTarget: FramebufferTarget
-let worldPass: ScenePass
+let sceneCamera: Camera2D
 let atlas: TextureAtlas
 let bg_atlas: TextureAtlas
 
@@ -145,10 +218,11 @@ let playerAnimation: Animation
 let testAnimation: Animation
 
 
+let pipeline: RenderPipeline
 
 let t: number
 export function _init() {
-    worldPass.camera.setOrthographic(0, 320, 180, 0)
+    sceneCamera.setOrthographic(0, 320, 180, 0)
 
     t = 0 
 

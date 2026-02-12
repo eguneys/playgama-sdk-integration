@@ -80,3 +80,30 @@ void main() {
     fragColor = vec4(finalColor, 1.0);
 }
 `
+
+export const Multiply_VS = `#version 300 es
+        layout(location=0) in vec2 aPos;
+
+        out vec2 vUV;
+
+        void main() {
+            vUV = aPos * 0.5 + 0.5;
+            gl_Position = vec4(aPos, 0.0, 1.0);
+        }`;
+
+        export const Multiply_FS = `#version 300 es
+        precision highp float;
+
+        in vec2 vUV;
+
+        uniform sampler2D uScene;
+        uniform sampler2D uLight;
+
+        out vec4 fragColor;
+
+        void main() {
+            vec4 sceneColor = texture(uScene, vUV);
+            vec4 lightColor = texture(uLight, vUV);
+
+            fragColor = sceneColor * lightColor;
+        }`
