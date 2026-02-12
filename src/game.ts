@@ -360,6 +360,21 @@ export function _render() {
     })
 
 
+    queue.submit<RectCommand>({
+        type: 'shape',
+        type2: 'rect',
+        x: 100,
+        y: 100,
+        w: 100,
+        h: 100,
+        strokeWidth: 1,
+        color: colors.red,
+        pass: 'shapes',
+        layer: 0,
+        depth: 0
+    })
+
+
     Vampire.vs.forEach(_ => _.render())
 
     Cursor.instance.render()
@@ -371,9 +386,9 @@ export function _render() {
 
 import bg_test from '../design/bg_test.png'
 import test_pgn from '../design/test2.png'
-import type { Camera2D } from '../twisterjs/webgl/camera2d'
 import { add, AnimChannel, BloomPass, colors, Delay, DragHandler, FullscreenQuadRenderer, load_image, mulScalar, vec2, vec2_equals, vibrant, type RenderQueue, type Vec2} from '../twisterjs'
 import { RenderPipeline } from './pipeline'
+import { ShapeRenderer, type RectCommand } from '../twisterjs/webgl/ShapeRenderer'
 
 let drag: DragHandler
 export async function _set_ctx(q: RenderQueue, canvas: HTMLCanvasElement) {
@@ -437,9 +452,9 @@ export async function _set_ctx(q: RenderQueue, canvas: HTMLCanvasElement) {
     pipeline.wallsPass.addRenderer(new SpriteRenderer(q.gl, bg_atlas))
     pipeline.wallsPass.addRenderer(new SpriteRenderer(q.gl, atlas))
 
-    pipeline.bloomPass = new BloomPass(queue.gl, new FullscreenQuadRenderer(queue.gl), 320, 180)
+    pipeline.shapesPass.addRenderer(new ShapeRenderer(q.gl))
 
-    sceneCamera = pipeline.scenePass.camera
+    pipeline.bloomPass = new BloomPass(queue.gl, new FullscreenQuadRenderer(queue.gl), 320, 180)
 }
 
 let cursor_Sprite: Sprite
@@ -447,7 +462,6 @@ let vSprite: Sprite
 
 let queue: RenderQueue
 
-let sceneCamera: Camera2D
 let atlas: TextureAtlas
 let bg_atlas: TextureAtlas
 
@@ -538,8 +552,6 @@ class Cursor {
 
 
 export function _init() {
-    sceneCamera.setOrthographic(0, 320, 180, 0)
-
     t = 0 
 }
 

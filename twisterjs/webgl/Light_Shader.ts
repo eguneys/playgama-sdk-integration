@@ -1,3 +1,5 @@
+import { PixelPerfectSampler_Helper_FS } from "./PixelPerfectSampler_ShaderHelper";
+
 export const Shadow_VS = `#version 300 es
 layout(location=0) in vec2 aPos;
 
@@ -102,12 +104,14 @@ uniform sampler2D uAtlas;
 in vec2 vUV;
 out vec4 fragColor;
 
+${PixelPerfectSampler_Helper_FS}
+
 void main() {
 
 
 
 
-    fragColor = texture(uAtlas, vUV);
+    fragColor = texture(uAtlas, pixelPerfectUV(uAtlas, vUV));
 
 
 

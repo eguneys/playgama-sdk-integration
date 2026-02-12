@@ -1,3 +1,4 @@
+import { PixelPerfectSampler_Helper_FS } from './PixelPerfectSampler_ShaderHelper';
 import { type IRenderer, type RenderCommand } from './RenderPass'
 import { Sprite } from './Sprite'
 import type { TextureAtlas } from './TextureAtlas';
@@ -103,8 +104,8 @@ export class SpriteRenderer implements IRenderer<SpriteCommand> {
         let i = base;
 
         // position
-        this.instanceData[i++] = x;
-        this.instanceData[i++] = y;
+        this.instanceData[i++] = Math.round(x) + 0.5;
+        this.instanceData[i++] = Math.round(y) + 0.5;
 
         // size
         this.instanceData[i++] = width;
@@ -339,9 +340,11 @@ export class SpriteRenderer implements IRenderer<SpriteCommand> {
 
         out vec4 outColor;
 
+${PixelPerfectSampler_Helper_FS}
+
         void main() {
             vec4 texColor =
-                texture(uAtlas, vUV);
+                texture(uAtlas, pixelPerfectUV(uAtlas, vUV));
             outColor = texColor * vColor;
         }`;
 

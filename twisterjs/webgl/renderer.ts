@@ -5,7 +5,7 @@ export class Renderer {
 
 
     constructor(public width: number, public height: number, canvas: HTMLCanvasElement) {
-        const gl = canvas.getContext("webgl2", { antialias: true, stencil: true });
+        const gl = canvas.getContext("webgl2", { antialias: false, stencil: true });
         if (!gl) throw new Error("WebGL2 not supported");
         this.gl = gl;
 

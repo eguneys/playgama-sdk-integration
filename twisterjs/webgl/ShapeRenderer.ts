@@ -1,40 +1,53 @@
 import { Color } from "./color";
-import { createOrthoMatrix, type Matrix4x4 } from "./mat4";
-import type { Renderer } from "./renderer";
-import { RenderCommand } from "./RenderPass";
+import { type RenderCommand, type IRenderer } from "./RenderPass";
 import { FRAG_SRC, VERT_SRC } from "./Shape_Shader";
 
-export interface ShapeCommand extends RenderCommand {
+
+export interface RectCommand extends RenderCommand {
     type: "shape";
+    type2: "rect";
 
     x: number;
     y: number;
-    width: number;
-    height: number;
 
-    rotation: number;
-    originX: number;
-    originY: number;
+    w: number;
+    h: number;
 
-    color: [number, number, number, number];
+    rotation?: number
+    strokeWidth?: number;
+    color: Color;
 }
+
+
+
+export interface LineCommand extends RenderCommand {
+    type: "shape";
+    type2: "line";
+
+    x1: number;
+    y1: number;
+
+    x2: number;
+    y2: number;
+
+    thickness: number;
+    color: Color;
+}
+
+
+export type ShapeCommand = LineCommand | RectCommand
 
 /**
  * Renders simple shapes using Shapeing and on a single draw call with instanced drawing 
  */
-export class ShapeRenderer {
-  private renderer: Renderer;
+export class ShapeRenderer implements IRenderer<ShapeCommand> {
 
+  readonly type =  "shape";
 
     maxInstances: number;
     instanceStride: number;
     instanceData: Float32Array;
     instanceCount: number = 0;
-
-    //uResolution: WebGLUniformLocation | null;
-    uProjectionMatrix: WebGLUniformLocation | null;
-
-    projectionMatrix: Matrix4x4
 
     program: WebGLProgram;
     vao: WebGLVertexArrayObject;
@@ -63,22 +76,13 @@ export class ShapeRenderer {
   // temporary to avoid allocations
   //private tmpColor: Color = { r: 1, g: 1, b: 1, a: 1 };
 
-  get gl() {
-    return this.renderer.gl
-  }
-
-  constructor(renderer: Renderer, maxInstances = 8192) {
-    this.renderer = renderer;
+  constructor(private gl: WebGL2RenderingContext, maxInstances = 8192) {
     this.maxInstances = maxInstances;
 
     // Ensure renderer has enough capacity; if not, it's user's responsibility to create with larger maxInstances
     this.buffer = new Float32Array(maxInstances * ShapeRenderer.INSTANCE_STRIDE);
 
-    this.projectionMatrix = createOrthoMatrix(0, renderer.width, renderer.height, 0)
-
     this.maxInstances = maxInstances;
-
-    let { gl } = this
 
     // 1 quad = 4 vertices
     this.quadVBO = gl.createBuffer()!;
@@ -89,9 +93,6 @@ export class ShapeRenderer {
       FRAG_SRC
     );
 
-    //this.uResolution = gl.getUniformLocation(this.program, "u_resolution");
-    this.uProjectionMatrix = gl.getUniformLocation(this.program, "u_projection");
-
 
     // 36 floats per instance example (we will align later)
     this.instanceStride = 15; // You will expand this later
@@ -101,6 +102,20 @@ export class ShapeRenderer {
 
     this.setupInstancing()
   }
+
+  submit(cmd: ShapeCommand): void {
+    if (cmd.type2 === 'line') {
+      this.strokeLine(cmd.x1, cmd.y1, cmd.x2, cmd.y2, cmd.thickness, cmd.color)
+    }
+    if (cmd.type2 === 'rect') {
+      if (cmd.strokeWidth !== undefined) {
+        this.strokeRect(cmd.x, cmd.y, cmd.w, cmd.h, cmd.strokeWidth, cmd.color, undefined, cmd.rotation ?? 0)
+      } else {
+      }
+    }
+  }
+
+
 
   /**
    * Must be called once before drawing any shapes
@@ -115,46 +130,6 @@ export class ShapeRenderer {
    */
   end() {
     this.flush();
-  }
-
-  /**
-   * Begins a mask mode
-   * Must be called once before drawing a mask
-   * 
-   * @example
-   * 
-   * ```ts
-   * batch.pushMask()
-   * // draw mask
-   * batch.fillRect(\/\* \*\/)
-   * batch.endMask()
-   * // draw shapes that the mask will be applied to
-   * batch.fillRect(\/\* \*\/)
-   * batch.popMask()
-   * ```
-   * 
-   */
-  pushMask() {
-    this.flush()
-    this.renderer.pushMask()
-  }
-
-  /**
-   * Ends a mask mode
-   * Must be called once after drawing your masked shapes
-   */
-  popMask() {
-    this.flush()
-    this.renderer.popMask()
-  }
-
-  /**
-   * Ends the mask region definition
-   * Must be called once in between pushMask and popMask
-   */
-  endMask() {
-    this.flush()
-    this.renderer.endMask()
   }
 
   private ensureCapacity(additional: number) {
@@ -431,8 +406,6 @@ export class ShapeRenderer {
 
     gl.useProgram(this.program);
     gl.bindVertexArray(this.vao);
-
-    gl.uniformMatrix4fv(this.uProjectionMatrix, false, this.projectionMatrix);
 
     // Upload only the needed part of the buffer
     gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceVBO);

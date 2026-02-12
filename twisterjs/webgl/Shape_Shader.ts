@@ -1,3 +1,5 @@
+import { PixelPerfectSampler_Helper_FS } from './PixelPerfectSampler_ShaderHelper'
+
 export const VERT_SRC = `
 #version 300 es
 precision highp float;
@@ -22,7 +24,10 @@ out float v_stroke;
 out vec2 v_dash;
 out float v_length;
 
-uniform mat4 u_projection; // 1920x1080 Orto Matrix
+layout(std140) uniform Camera {
+    mat4 uViewProjection;
+};
+
 
 void main() {
     // Convert quad coordinates (0..1) to local space (-0.5..0.5)
@@ -51,7 +56,7 @@ void main() {
 
     // convert pixel pos to NDC
     //vec2 ndc = (world / u_resolution) * 2.0 - 1.0;
-    vec4 ndc = u_projection * vec4(world, 0.0, 1.0);
+    vec4 ndc = uViewProjection * vec4(world, 0.0, 1.0);
     //gl_Position = vec4(ndc * vec2(1, -1), 0.0, 1.0);
     gl_Position = ndc;
 }

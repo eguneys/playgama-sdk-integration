@@ -36,8 +36,8 @@ export class Camera2D {
 
         const scale = oldZoom / this.zoom;
 
-        this.x = worldX - (worldX - this.x) * scale;
-        this.y = worldY - (worldY - this.y) * scale;
+        this.x = Math.round(worldX - (worldX - this.x) * scale);
+        this.y = Math.round(worldY - (worldY - this.y) * scale);
     }
 
 

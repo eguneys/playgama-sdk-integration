@@ -1,5 +1,6 @@
 import type { Vec2 } from '../math/vec2';
 import { Light_FS, Light_VS, LightPlacement_FS, LightPlacement_VS, Shadow_FS, Shadow_VS } from './Light_Shader';
+import { PixelPerfectSampler } from './PixelPerfectSampler';
 import type { RenderTarget } from './RenderPass';
 
 
@@ -62,10 +63,7 @@ export class LightAtlas {
 
         const viewport = this.getTileViewport(index);
 
-        const u0 = viewport.x / this.atlasSize;
-        const v0 = viewport.y / this.atlasSize;
-        const u1 = (viewport.x + viewport.size) / this.atlasSize;
-        const v1 = (viewport.y + viewport.size) / this.atlasSize;
+        let { u0, v0, u1, v1 } = PixelPerfectSampler.atlasUV(viewport.x, viewport.y, viewport.size, viewport.size, this.atlasSize, this.atlasSize)
 
         return { u0, v0, u1, v1 };
     }

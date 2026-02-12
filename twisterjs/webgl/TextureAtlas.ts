@@ -1,3 +1,4 @@
+import { PixelPerfectSampler } from './PixelPerfectSampler'
 
 export interface AtlasRegion {
     uvMin: [number, number];
@@ -169,10 +170,7 @@ export class TextureAtlas {
                 h -= 1.0;
             }
 
-            const u0 = x / this.width;
-            const v0 = y / this.height;
-            const u1 = (x + w) / this.width;
-            const v1 = (y + h) / this.height;
+            let { u0, v0, u1, v1 } = PixelPerfectSampler.atlasUV(x, y, w, h, this.width, this.height)
 
             this.regions.set(key, {
                 uvMin: [u0, v0],

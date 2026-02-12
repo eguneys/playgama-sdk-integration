@@ -1,7 +1,13 @@
 import { CompositePass, FinalPass, MultiplyPass, RenderQueue, RenderTarget, ScenePass, type BloomPass } from "../twisterjs";
 import { LightAtlas, LightAtlasPass, LightCompositePass, LightPlacementRenderer, LightRenderer, ShadowRenderer, type Light, type OccluderEdge } from "../twisterjs/webgl/light";
+import { CameraUBO } from '../twisterjs/webgl/camera_ubo'
+import { PixelPerfectCamera2D } from '../twisterjs/webgl/pixel_perfect_camera'
 
 export class RenderPipeline {
+
+
+    public readonly cameraUBO: CameraUBO
+    public readonly camera: PixelPerfectCamera2D
 
     private sceneTarget: RenderTarget;
     private lightAtlas: LightAtlas;
@@ -9,6 +15,9 @@ export class RenderPipeline {
     private litSceneTarget: RenderTarget;
     private litWallTarget: RenderTarget;
     private compositedTarget: RenderTarget;
+
+
+    private shapesTarget: RenderTarget;
 
     private lightAtlasPass: LightAtlasPass;
     private lightCompositePass: LightCompositePass;
@@ -27,8 +36,12 @@ export class RenderPipeline {
 
     public wallsPass: ScenePass
 
+    public shapesPass: ScenePass
 
     constructor(private queue: RenderQueue, width: number, height: number) {
+
+        this.camera = new PixelPerfectCamera2D(width, height)
+        this.cameraUBO = new CameraUBO(queue.gl)
 
         this.queue = queue
         let { gl } = queue
@@ -40,12 +53,17 @@ export class RenderPipeline {
         this.litWallTarget = new RenderTarget(gl, width, height)
         this.compositedTarget = new RenderTarget(gl, width, height)
 
+
+        this.shapesTarget = new RenderTarget(gl, 1920, 1080)
+
         this.lightAtlas = new LightAtlas(gl, 2048, 256);
 
         // --- Passes ---
         this.scenePass = queue.addPass('world', { target: this.sceneTarget })
 
-        this.wallsPass = queue.addPass('walls', { target: this.litWallTarget, camera: this.scenePass.camera })
+        this.wallsPass = queue.addPass('walls', { target: this.litWallTarget, })
+
+        this.shapesPass = queue.addPass('shapes', { target: this.shapesTarget, })
 
         this.compositePass = new CompositePass(gl)
 
@@ -75,10 +93,23 @@ export class RenderPipeline {
 
     render() {
 
+        this.camera.update()
+        this.cameraUBO.update(this.camera.getMatrix4())
+
         // -------------------------
         // 1️⃣ Scene pass
         // -------------------------
         this.queue.flush()
+
+        /*
+        this.finalPass.execute(
+            this.sceneTarget.texture
+        );
+
+        this.lights.length = 0
+        return
+        */
+
 
         // -------------------------
         // 2️⃣ Build Light Atlas
@@ -111,11 +142,13 @@ export class RenderPipeline {
 
         this.compositePass.execute(nextTexture, this.litWallTarget.texture, this.compositedTarget)
 
+        this.compositePass.execute(this.compositedTarget.texture, this.shapesTarget.texture, this.litSceneTarget)
+
         // -------------------------
         // 6️⃣ Final To Screen
         // -------------------------
         this.finalPass.execute(
-            this.compositedTarget.texture
+            this.litSceneTarget.texture
         );
 
         // Reset per-frame lists

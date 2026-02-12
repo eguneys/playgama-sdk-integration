@@ -1,3 +1,4 @@
+import { PixelPerfectSampler_Helper_FS } from "./PixelPerfectSampler_ShaderHelper";
 export const Copy_FS = `#version 300 es
 precision mediump float;
 
@@ -7,9 +8,11 @@ uniform sampler2D uAtlas;
 
 out vec4 outColor;
 
+${PixelPerfectSampler_Helper_FS}
+
 void main() {
     vec4 texColor =
-        texture(uAtlas, vUV);
+        texture(uAtlas,  pixelPerfectUV(uAtlas, vUV));
     outColor = texColor;
 }`;
 
@@ -23,9 +26,11 @@ out vec4 fragColor;
 uniform sampler2D uScene;
 uniform float uThreshold;
 
+${PixelPerfectSampler_Helper_FS}
+
 void main() {
 
-    vec3 color = texture(uScene, vUV).rgb;
+    vec3 color = texture(uScene, pixelPerfectUV(uScene, vUV)).rgb;
 
     float brightness = dot(color, vec3(0.2126, 0.7152, 0.0722));
 
@@ -45,16 +50,17 @@ out vec4 fragColor;
 uniform sampler2D uTexture;
 uniform vec2 uDirection;  // (1,0) or (0,1)
 uniform vec2 uTexelSize;
+${PixelPerfectSampler_Helper_FS}
 
 void main() {
 
-    vec3 result = texture(uTexture, vUV).rgb * 0.227027;
+    vec3 result = texture(uTexture, pixelPerfectUV(uTexture, vUV)).rgb * 0.227027;
 
-    result += texture(uTexture, vUV + uDirection * uTexelSize * 1.384615).rgb * 0.316216;
-    result += texture(uTexture, vUV - uDirection * uTexelSize * 1.384615).rgb * 0.316216;
+    result += texture(uTexture, pixelPerfectUV(uTexture, vUV + uDirection * uTexelSize * 1.384615)).rgb * 0.316216;
+    result += texture(uTexture, pixelPerfectUV(uTexture, vUV - uDirection * uTexelSize * 1.384615)).rgb * 0.316216;
 
-    result += texture(uTexture, vUV + uDirection * uTexelSize * 3.230769).rgb * 0.070270;
-    result += texture(uTexture, vUV - uDirection * uTexelSize * 3.230769).rgb * 0.070270;
+    result += texture(uTexture, pixelPerfectUV(uTexture, vUV + uDirection * uTexelSize * 3.230769)).rgb * 0.070270;
+    result += texture(uTexture, pixelPerfectUV(uTexture, vUV - uDirection * uTexelSize * 3.230769)).rgb * 0.070270;
 
     fragColor = vec4(result, 1.0);
 }
@@ -70,10 +76,12 @@ uniform sampler2D uScene;
 uniform sampler2D uBloom;
 uniform float uIntensity;
 
+${PixelPerfectSampler_Helper_FS}
+
 void main() {
 
-    vec3 scene = texture(uScene, vUV).rgb;
-    vec3 bloom = texture(uBloom, vUV).rgb;
+    vec3 scene = texture(uScene, pixelPerfectUV(uScene, vUV)).rgb;
+    vec3 bloom = texture(uBloom, pixelPerfectUV(uBloom, vUV)).rgb;
 
     vec3 finalColor = scene + bloom * uIntensity;
 
@@ -101,9 +109,11 @@ export const Multiply_VS = `#version 300 es
 
         out vec4 fragColor;
 
+        ${PixelPerfectSampler_Helper_FS}
+
         void main() {
-            vec4 sceneColor = texture(uScene, vUV);
-            vec4 lightColor = texture(uLight, vUV);
+            vec4 sceneColor = texture(uScene, pixelPerfectUV(uScene, vUV));
+            vec4 lightColor = texture(uLight, pixelPerfectUV(uLight, vUV));
 
             float ambient = 0.1;
 

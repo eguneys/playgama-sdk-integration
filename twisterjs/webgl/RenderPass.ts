@@ -1,5 +1,3 @@
-import { Camera2D } from "./camera2d";
-
 export interface RenderCommand {
     type: string;
     pass: string;
@@ -24,18 +22,14 @@ export class RenderQueue {
         name: string,
         options?: {
             target?: RenderTarget;
-            camera?: Camera2D;
         }
     ): ScenePass {
-
-        const camera =
-            options?.camera ?? new Camera2D(this.gl);
 
         const target =
             options?.target ?? new ScreenTarget(this.gl, this.width, this.height);
 
         const pass =
-            new ScenePass(name, camera, target);
+            new ScenePass(name, target);
 
         this.passes.set(name, pass);
 
@@ -154,18 +148,15 @@ export class ScreenTarget implements IRenderTarget {
 export class ScenePass {
 
     readonly name: string;
-    readonly camera: Camera2D;
     readonly target: IRenderTarget;
 
     private renderers: IRenderer<any>[] = [];
 
     constructor(
         name: string,
-        camera: Camera2D,
         target: IRenderTarget,
     ) {
         this.name = name;
-        this.camera = camera;
         this.target = target;
     }
 
@@ -178,8 +169,6 @@ export class ScenePass {
         this.target.bind();
         gl.clearColor(0, 0, 0, 0.0)
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-        this.camera.update();
 
         const grouped = new Map<string, RenderCommand[]>();
 
