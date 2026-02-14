@@ -1,6 +1,7 @@
 import { Sprite } from '../twisterjs/webgl/Sprite'
 import { TextureAtlas } from '../twisterjs/webgl/TextureAtlas'
 import { SpriteRenderer } from '../twisterjs/webgl/SpriteRenderer'
+import { type TextDrawCommand, CanvasTextAtlas, TextRenderer } from '../twisterjs/webgl/canvas_text'
 
 export function _update(delta: number) {
     t += delta
@@ -60,7 +61,7 @@ class Occupancy {
 
 
         Occupancy.add_occ.push(new Occupancy(
-            Vampire.push(coord), 
+            Vampire.push(coord, vec2_equals(coord, vec2(0, 0))), 
             OccupancyState.Spawn, 
             coord, 
             0))
@@ -117,8 +118,9 @@ class Occupancy {
     static update = (delta: number) => {
 
 
-        if (Occupancy.size < 90) {
+        if (Occupancy.size < 40) {
             Occupancy.spawn_if_empty(vec2(0, 0))
+            Occupancy.spawn_if_empty(vec2(Grid.width, Grid.height))
         }
 
         this.remove_occ.forEach(_ => {
@@ -275,8 +277,8 @@ const tile_to_pos = (cord: TileCord) => add(mulScalar(cord, Grid.tileSize), vec2
 class Vampire {
     static vs: Vampire[] = []
 
-    static push = (on_tile: TileCord) => {
-        let v = new Vampire(on_tile)
+    static push = (on_tile: TileCord, is_two: boolean) => {
+        let v = new Vampire(on_tile, is_two)
         Vampire.vs.push(v)
         return v
     }
@@ -292,6 +294,8 @@ class Vampire {
 
         Vampire.vs.forEach(_ => _.update(delta))
     }
+
+    is_two: boolean
 
     is_hovering: boolean
 
@@ -314,7 +318,7 @@ class Vampire {
     a: AnimChannel
     a_delay: Delay
 
-    constructor(public on_tile: TileCord) {
+    constructor(public on_tile: TileCord, is_two: boolean) {
         this.time = 0
         let position = tile_to_pos(on_tile)
         this.spring_position_x = new AnimChannel(position.x)
@@ -325,6 +329,8 @@ class Vampire {
         this.a_delay = new Delay().set_line('300')
 
         this.is_hovering = false
+
+        this.is_two = is_two
     }
 
     move_to(to_tile: TileCord) {
@@ -361,7 +367,7 @@ class Vampire {
         queue.submit({
             type: 'sprite',
             pass: 'world',
-            sprite: vSprite,
+            sprite: this.is_two ? vTwo : vOne,
             x,
             y,
             layer: 0,
@@ -408,6 +414,19 @@ export function _render() {
         Hitboxes.render()
     }
 
+
+    queue.submit<TextDrawCommand>({
+        text: `heaisdflakjfllo`,
+        x: 100,
+        y: 500,
+        type: 'text',
+        pass: 'shapes',
+        font: '200px Bungee',
+        color: colors.white,
+        layer: 0,
+        depth: 0
+    })
+
     pipeline.render()
 }
 
@@ -416,7 +435,7 @@ export function _render() {
 
 import bg_test from '../design/bg_test.png'
 import test_pgn from '../design/test2.png'
-import { add, AnimChannel, BloomPass, box_intersect, box_intersect_ratio, Color, colors, Delay, DragHandler, FullscreenQuadRenderer, load_image, mulScalar, rect, vec2, vec2_equals, vibrant, type Rect, type RenderQueue, type Vec2} from '../twisterjs'
+import { add, AnimChannel, BloomPass, box_intersect, box_intersect_ratio, Color, colors, Delay, DragHandler, FullscreenQuadRenderer, load_font, load_image, mulScalar, rect, vec2, vec2_equals, vibrant, type Rect, type RenderQueue, type Vec2} from '../twisterjs'
 import { RenderPipeline } from './pipeline'
 import { ShapeRenderer, type RectCommand } from '../twisterjs/webgl/ShapeRenderer'
 
@@ -426,8 +445,9 @@ export async function _set_ctx(q: RenderQueue, canvas: HTMLCanvasElement) {
 
     drag = DragHandler(320, 180, canvas)
 
-    let bg_image = await load_image(bg_test)
+    await load_font('Bungee', '/Bungee/Bungee-Regular.ttf')
 
+    let bg_image = await load_image(bg_test)
     let atlas_image = await load_image(test_pgn)
 
     bg_atlas = TextureAtlas.fromImageAndJSON(queue.gl, bg_image, {
@@ -464,7 +484,8 @@ export async function _set_ctx(q: RenderQueue, canvas: HTMLCanvasElement) {
         frames: {
             //...frames('player_idle', { x: 0, y: 0, w: 32, h: 32 }, 4),
             //...frames('test_idle', { x: 0, y: 100, w: 100, h: 100 }, 1),
-            'player_idle': { frame: { x: 24, y: 0, w: 8, h: 8 }},
+            'vone': { frame: { x: 24, y: 0, w: 8, h: 8 }},
+            'vtwo': { frame: { x: 32, y: 0, w: 8, h: 8 }},
             'cursor': { frame: { x: 0, y: 16, w: 16, h: 16 }},
             'dark': { frame: { x: 24, y: 8, w: 16, h: 16 }},
             'light': { frame: { x: 40, y: 8, w: 16, h: 16 }}
@@ -472,7 +493,8 @@ export async function _set_ctx(q: RenderQueue, canvas: HTMLCanvasElement) {
         }
     }, { pixelArt: true })
 
-    vSprite = new Sprite(atlas, 'player_idle')
+    vOne = new Sprite(atlas, 'vone')
+    vTwo = new Sprite(atlas, 'vtwo')
     cursor_Sprite = new Sprite(atlas, 'cursor')
 
     dark_Sprite = new Sprite(atlas, 'dark')
@@ -489,6 +511,7 @@ export async function _set_ctx(q: RenderQueue, canvas: HTMLCanvasElement) {
     pipeline.wallsPass.addRenderer(new SpriteRenderer(q.gl, atlas))
 
     pipeline.shapesPass.addRenderer(new ShapeRenderer(q.gl))
+    pipeline.shapesPass.addRenderer(new TextRenderer(q.gl, new CanvasTextAtlas(queue.gl), 1920, 1080))
 
     pipeline.bloomPass = new BloomPass(queue.gl, new FullscreenQuadRenderer(queue.gl), 320, 180)
 }
@@ -497,7 +520,8 @@ let dark_Sprite: Sprite
 let light_Sprite: Sprite
 
 let cursor_Sprite: Sprite
-let vSprite: Sprite
+let vOne: Sprite
+let vTwo: Sprite
 
 let queue: RenderQueue
 

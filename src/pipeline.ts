@@ -18,6 +18,7 @@ export class RenderPipeline {
 
 
     private shapesTarget: RenderTarget;
+    private finalHDTarget: RenderTarget;
 
     private lightAtlasPass: LightAtlasPass;
     private lightCompositePass: LightCompositePass;
@@ -55,6 +56,7 @@ export class RenderPipeline {
 
 
         this.shapesTarget = new RenderTarget(gl, 1920, 1080)
+        this.finalHDTarget = new RenderTarget(gl, 1920, 1080)
 
         this.lightAtlas = new LightAtlas(gl, 2048, 256);
 
@@ -142,13 +144,13 @@ export class RenderPipeline {
 
         this.compositePass.execute(nextTexture, this.litWallTarget.texture, this.compositedTarget)
 
-        this.compositePass.execute(this.compositedTarget.texture, this.shapesTarget.texture, this.litSceneTarget)
+        this.compositePass.execute(this.compositedTarget.texture, this.shapesTarget.texture, this.finalHDTarget)
 
         // -------------------------
         // 6️⃣ Final To Screen
         // -------------------------
         this.finalPass.execute(
-            this.litSceneTarget.texture
+            this.finalHDTarget.texture
         );
 
         // Reset per-frame lists

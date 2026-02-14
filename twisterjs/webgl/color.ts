@@ -144,4 +144,9 @@ export class Color {
       a: Math.round(this.a * 255),
     }
   }
+
+  get css(): string {
+    let { r, g, b, a } = this.rgba255
+    return `rgba(${r}, ${g}, ${b}, ${a})`
+  }
 }
