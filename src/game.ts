@@ -5,7 +5,7 @@ import { SpriteRenderer } from '../twisterjs/webgl/SpriteRenderer'
 export function _update(delta: number) {
     t += delta
 
-    Vampire.vs.forEach(_ => _.update(delta))
+    Vampire.update(delta)
     //sceneCamera.zoomAt(100, 100, 1 + Math.sin(t * 0.001) * 0.2)
 
     Occupancy.update(delta)
@@ -162,7 +162,11 @@ class Occupancy {
                 this.move_if_empty()
             } break
             case OccupancyState.OnTile: {
-                this.move_if_empty()
+                if (this.vampire.is_hovering) {
+
+                } else {
+                    this.move_if_empty()
+                }
             } break
             case OccupancyState.MovingOut: {
                 if (this.vampire.to_tile === undefined) {
@@ -230,6 +234,20 @@ const empty_tile = () => ({ terrain: TerrainType.Empty })
 
 class Grid {
 
+    static render() {
+        let off_x = 9
+        let off_y = 16
+        for (let i = 0; i <= Grid.width; i++) {
+            for (let j = 0; j <= Grid.height; j++) {
+                if ((i + j) % 2 === 0) {
+                    sprite_world(off_x + i * Grid.tileSize, off_y + j * Grid.tileSize, dark_Sprite)
+                } else {
+                    sprite_world(off_x + i * Grid.tileSize, off_y + j * Grid.tileSize, light_Sprite)
+                }
+            }
+        }
+    }
+
     static tileSize = 16 
     static width = 16
     static height = 9
@@ -263,10 +281,28 @@ class Vampire {
         return v
     }
 
+    static update = (delta: number) => {
+
+        Vampire.vs.forEach(_ => _.is_hovering = false)
+        let hit = Cursor.hit_most(Vampire.vs)
+
+        if (hit) {
+            hit.is_hovering = true
+        }
+
+        Vampire.vs.forEach(_ => _.update(delta))
+    }
+
+    is_hovering: boolean
+
     time: number
 
     to_tile?: TileCord
     to_delay: Delay
+
+    get hitbox() {
+        return Vampire_box(this)
+    }
 
     get position() {
         return vec2(this.spring_position_x.value, this.spring_position_y.value)
@@ -287,6 +323,8 @@ class Vampire {
         this.a = new AnimChannel(0)
         this.a.springTo(60)
         this.a_delay = new Delay().set_line('300')
+
+        this.is_hovering = false
     }
 
     move_to(to_tile: TileCord) {
@@ -359,25 +397,17 @@ export function _render() {
         depth: 0
     })
 
-
-    queue.submit<RectCommand>({
-        type: 'shape',
-        type2: 'rect',
-        x: 100,
-        y: 100,
-        w: 100,
-        h: 100,
-        strokeWidth: 1,
-        color: colors.red,
-        pass: 'shapes',
-        layer: 0,
-        depth: 0
-    })
-
+    Grid.render()
 
     Vampire.vs.forEach(_ => _.render())
 
     Cursor.instance.render()
+
+
+    if (Hitboxes.on) {
+        Hitboxes.render()
+    }
+
     pipeline.render()
 }
 
@@ -386,7 +416,7 @@ export function _render() {
 
 import bg_test from '../design/bg_test.png'
 import test_pgn from '../design/test2.png'
-import { add, AnimChannel, BloomPass, colors, Delay, DragHandler, FullscreenQuadRenderer, load_image, mulScalar, vec2, vec2_equals, vibrant, type RenderQueue, type Vec2} from '../twisterjs'
+import { add, AnimChannel, BloomPass, box_intersect, box_intersect_ratio, Color, colors, Delay, DragHandler, FullscreenQuadRenderer, load_image, mulScalar, rect, vec2, vec2_equals, vibrant, type Rect, type RenderQueue, type Vec2} from '../twisterjs'
 import { RenderPipeline } from './pipeline'
 import { ShapeRenderer, type RectCommand } from '../twisterjs/webgl/ShapeRenderer'
 
@@ -435,12 +465,18 @@ export async function _set_ctx(q: RenderQueue, canvas: HTMLCanvasElement) {
             //...frames('player_idle', { x: 0, y: 0, w: 32, h: 32 }, 4),
             //...frames('test_idle', { x: 0, y: 100, w: 100, h: 100 }, 1),
             'player_idle': { frame: { x: 24, y: 0, w: 8, h: 8 }},
-            'cursor': { frame: { x: 0, y: 16, w: 16, h: 16 }}
+            'cursor': { frame: { x: 0, y: 16, w: 16, h: 16 }},
+            'dark': { frame: { x: 24, y: 8, w: 16, h: 16 }},
+            'light': { frame: { x: 40, y: 8, w: 16, h: 16 }}
+
         }
     }, { pixelArt: true })
 
     vSprite = new Sprite(atlas, 'player_idle')
     cursor_Sprite = new Sprite(atlas, 'cursor')
+
+    dark_Sprite = new Sprite(atlas, 'dark')
+    light_Sprite = new Sprite(atlas, 'light')
 
     bgSprite = new Sprite(bg_atlas, 'bg1')
 
@@ -456,6 +492,9 @@ export async function _set_ctx(q: RenderQueue, canvas: HTMLCanvasElement) {
 
     pipeline.bloomPass = new BloomPass(queue.gl, new FullscreenQuadRenderer(queue.gl), 320, 180)
 }
+
+let dark_Sprite: Sprite
+let light_Sprite: Sprite
 
 let cursor_Sprite: Sprite
 let vSprite: Sprite
@@ -475,6 +514,25 @@ let t: number
 class Cursor {
 
     static instance = new Cursor()
+
+    static hit = (r: Rect) => box_intersect(Cursor.instance.hitbox, r)
+    static hit_most = <T extends { hitbox: Rect }>(vs: T[]) => {
+        let best
+        let best_i = 0
+        for (let v of vs) {
+
+            let i = box_intersect_ratio(v.hitbox, Cursor.instance.hitbox)
+            if (best_i < i) {
+                best = v
+                best_i = i
+            }
+        }
+        return best
+    }
+
+    get hitbox() {
+        return Cursor_box()
+    }
 
     position: Vec2
     position_d0: [AnimChannel, AnimChannel]
@@ -555,3 +613,66 @@ export function _init() {
     t = 0 
 }
 
+
+export const Vampire_box = (v: Vampire) => {
+    return rect(v.position.x, v.position.y, 16, 16)
+}
+
+export const Cursor_box = () => {
+    return rect(Cursor.instance.position.x, Cursor.instance.position.y, 12, 12)
+}
+
+export function sprite_world(x: number, y: number, sprite: Sprite) {
+        queue.submit({
+            type: 'sprite',
+            pass: 'world',
+            sprite,
+            x,
+            y,
+            layer: 0,
+            depth: 0
+        })
+
+
+}
+
+export function stroke_rect(x: number, y: number, w: number, h: number, color: Color, strokeWidth: number = 1) {
+
+    x = Math.round(x)
+    y = Math.round(y)
+
+    queue.submit<RectCommand>({
+        type: 'shape',
+        type2: 'rect',
+        x,
+        y,
+        w,
+        h,
+        strokeWidth,
+        color,
+        pass: 'shapes',
+        layer: 0,
+        depth: 0
+    })
+
+
+}
+
+const hitbox_rect = (r: Rect) => {
+    stroke_rect(r.xy.x, r.xy.y, r.wh.x, r.wh.y, colors.red, 1)
+}
+
+class Hitboxes {
+
+    static on = true
+
+    static render = () => {
+        Vampire.vs.forEach(_ => { 
+            hitbox_rect(Vampire_box(_))
+        })
+
+        hitbox_rect(Cursor_box())
+    }
+}
+
+Hitboxes.on = false
